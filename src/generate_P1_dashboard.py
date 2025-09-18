@@ -6,6 +6,9 @@ from collections import defaultdict
 import re
 
 log_dir = "/data/data/com.termux/files/home/p1logs/"
+if not os.path.exists(log_dir):
+    log_dir = "./sample_logs"
+
 output_file = os.path.join(log_dir, "energie_dashboard.html")
 
 # === BLOK 2: READ_LOGS FUNCTIE ===
@@ -827,5 +830,5 @@ document.addEventListener('DOMContentLoaded', function() {{
 """
 
 # === BLOK 10: BESTANDSOPERATIE ===
-with open(output_file, "w") as f:
+with open(output_file, "w", encoding="utf-8") as f:
     f.write(html_content)
