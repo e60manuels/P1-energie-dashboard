@@ -742,64 +742,62 @@ function setPeriod(period) {{
         btn.classList.remove('active');
     }});
     document.getElementById('btn' + period.charAt(0).toUpperCase() + period.slice(1)).classList.add('active');
-    
+
     const prevPeriod = state.period;
     const prevKey = state.currentKey;
-    
     state.period = period;
-    
-    let newKey = state.lastKeys[period];
-    
+
+    let newKey = state.lastKeys[period]; // Default to the latest available key
+
     if (prevPeriod !== 'now' && prevKey) {{
-        let prevDate = null;
+        const today = new Date();
+        let contextDate = null;
+
+        // Create a context date from the previous selection
         switch(prevPeriod) {{
             case 'day':
-                const parts_day = prevKey.split('-');
-                prevDate = new Date(Date.UTC(parts_day[0], parts_day[1] - 1, parts_day[2]));
+                const dayParts = prevKey.split('-');
+                contextDate = new Date(Date.UTC(dayParts[0], dayParts[1] - 1, dayParts[2]));
                 break;
             case 'week':
-                const parts_week = prevKey.split('-');
-                const year_week = parseInt(parts_week[0]);
-                const week_num = parseInt(parts_week[1]);
-                prevDate = new Date(Date.UTC(year_week, 0, 1 + (week_num - 1) * 7));
-                while (prevDate.getUTCDay() !== 1) prevDate.setUTCDate(prevDate.getUTCDate() - 1);
+                const weekParts = prevKey.split('-');
+                const year_week = parseInt(weekParts[0]);
+                const week_num = parseInt(weekParts[1]);
+                contextDate = new Date(Date.UTC(year_week, 0, 1 + (week_num - 1) * 7));
+                while (contextDate.getUTCDay() !== 1) contextDate.setUTCDate(contextDate.getUTCDate() - 1);
                 break;
             case 'month':
                 const monthParts = prevKey.split('-');
-                prevDate = new Date(Date.UTC(parseInt(monthParts[0]), parseInt(monthParts[1]) - 1, 1));
+                contextDate = new Date(Date.UTC(parseInt(monthParts[0]), parseInt(monthParts[1]) - 1, 15)); // Use mid-month to avoid timezone issues
                 break;
             case 'year':
-                prevDate = new Date(Date.UTC(parseInt(prevKey), 0, 1));
+                contextDate = new Date(Date.UTC(parseInt(prevKey), today.getUTCMonth(), today.getUTCDate()));
                 break;
         }}
 
-        if (prevDate) {{
-            let potentialKey = findPeriodKey(period, prevDate);
+        if (contextDate) {{
+            // Find the ideal key in the new period based on the context date
+            const potentialKey = findPeriodKey(period, contextDate);
+
             if (allData[period][potentialKey]) {{
                 newKey = potentialKey;
             }} else {{
-                // Fallback: Find the first key in the new period that is >= the previous date's month
+                // Fallback: find the last available key within the previous context
                 const sortedKeys = Object.keys(allData[period]).sort();
-                for (const key of sortedKeys) {{
-                    let keyDate = null;
-                    if (period === 'day') keyDate = new Date(Date.UTC(key.substring(0, 4), key.substring(5, 7) - 1, key.substring(8, 10)));
-                    if (period === 'week') {{
-                        const [year_k, week_k] = key.split('-');
-                        keyDate = new Date(Date.UTC(year_k, 0, 1 + (week_k - 1) * 7));
-                        while (keyDate.getUTCDay() !== 1) keyDate.setUTCDate(keyDate.getUTCDate() - 1);
-                    }}
-                    if (period === 'month') keyDate = new Date(Date.UTC(key.substring(0, 4), key.substring(5, 7) - 1, 1));
-                    if (period === 'year') keyDate = new Date(Date.UTC(key.substring(0, 4), 0, 1));
+                let filteredKeys = [];
 
-                    if (keyDate >= prevDate) {{
-                        newKey = key;
-                        break;
-                    }}
+                if (prevPeriod === 'year' || prevPeriod === 'month') {{
+                    filteredKeys = sortedKeys.filter(k => k.startsWith(prevKey));
                 }}
+                
+                if (filteredKeys.length > 0) {{
+                    newKey = filteredKeys.pop(); // Get the last available key in that context
+                }}
+                // If no keys are found in the context, we just stick with the default newKey (latest overall).
             }}
         }}
     }}
-    
+
     state.currentKey = newKey;
     updateChart();
 }}
