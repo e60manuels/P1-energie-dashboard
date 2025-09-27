@@ -70,7 +70,7 @@ def aggregate_day(records):
         
         dag_nl = ["ma", "di", "wo", "do", "vr", "za", "zo"][current_date.weekday()]
         maand_nl = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"][current_date.month - 1]
-        daily_datasets[day_key]["title"] = f"{dag_nl} {current_date.day} {maand_nl}"
+        daily_datasets[day_key]["title"] = f"{dag_nl} {current_date.day} {maand_nl} {current_date.year}"
         
         current_date += timedelta(days=1)
     
@@ -139,7 +139,7 @@ def aggregate_week(records):
         week_key = f"{year}-{week_num:02d}"
         
         if week_key not in weekly_datasets:
-            weekly_datasets[week_key]["title"] = f"Week {week_num}"
+            weekly_datasets[week_key]["title"] = f"Week {week_num}, {year}"
 
         current_date += timedelta(days=1)
         
@@ -384,7 +384,7 @@ body {{
     margin: 10px 0;
 }}
 
-.period-nav button {{ 
+.period-nav button, .period-nav select {{ 
     background: var(--bg-secondary); 
     border: none; 
     color: var(--text-primary); 
@@ -395,11 +395,17 @@ body {{
     transition: all 0.2s ease;
 }}
 
+.period-nav select {{
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}}
+
 .period-nav button:hover {{ 
     background: #3a3a3c; 
 }}
 
-.period-nav button.active {{ 
+.period-nav button.active, .period-nav select.active {{ 
     background: var(--accent-active); 
     font-weight: 600;
 }}
@@ -465,7 +471,7 @@ body {{
         <button id="btnDay" onclick="setPeriod('day')">Dag</button>
         <button id="btnWeek" onclick="setPeriod('week')">Week</button>
         <button id="btnMonth" onclick="setPeriod('month')">Maand</button>
-        <button id="btnYear" onclick="setPeriod('year')">Jaar</button>
+                <select id="yearSelector" class="period-nav-button" onchange="showYear(this.value)"><option value="">Jaar</option></select>
     </div>
 
     <div class="info-text" id="updateInfo">Laatste update: {datetime.now().strftime('%d-%m-%Y %H:%M')}</div>
@@ -518,6 +524,15 @@ function init() {{
         'month': lastMonthKey,
         'year': lastYearKey
     }};
+
+    const yearSelect = document.getElementById('yearSelector');
+    const years = Object.keys(allData.year).sort();
+    years.forEach(year => {{
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearSelect.appendChild(option);
+    }});
     
     setPeriod('now');
 }}
@@ -549,6 +564,18 @@ function getWeekNumber(d) {{
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
     return weekNo;
+}}
+
+function showYear(year) {{
+    if (year) {{
+        state.period = 'year';
+        state.currentKey = year;
+        document.querySelectorAll('.period-nav button').forEach(btn => {{
+            btn.classList.remove('active');
+        }});
+        document.getElementById('yearSelector').classList.add('active');
+        updateChart();
+    }}
 }}
 
 function updateChart() {{
@@ -741,6 +768,9 @@ function setPeriod(period) {{
     document.querySelectorAll('.period-nav button').forEach(btn => {{
         btn.classList.remove('active');
     }});
+    document.getElementById('yearSelector').classList.remove('active');
+    document.getElementById('yearSelector').value = "";
+
     document.getElementById('btn' + period.charAt(0).toUpperCase() + period.slice(1)).classList.add('active');
 
     const prevPeriod = state.period;
@@ -810,6 +840,9 @@ function navigatie(direction) {{
 
     if (direction === 0) {{ // Current button
         state.currentKey = sortedKeys[sortedKeys.length - 1];
+        if (state.period === 'year') {{
+            document.getElementById('yearSelector').value = state.currentKey;
+        }}
     }} else {{
         const newIndex = currentIndex + direction;
         if (newIndex >= 0 && newIndex < sortedKeys.length) {{
