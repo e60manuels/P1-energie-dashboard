@@ -292,12 +292,102 @@ def aggregate_year(records):
     return years
 
 
+# === BLOK 7.1: AGGREGATE_YEARS FUNCTIE ===
+def aggregate_years(records):
+    if not records:
+        return {}
+
+    # Reuse the aggregate_year function to get yearly totals
+    yearly_data_from_agg_year = aggregate_year(records) # This already has total_import and total_export per year
+
+    all_years = sorted(yearly_data_from_agg_year.keys())
+    years_datasets = defaultdict(lambda: {"labels": [], "imports": [], "exports": [], "total_import": 0, "total_export": 0, "title": "", "type": "bar"})
+    
+    chunk_size = 10
+    for i in range(0, len(all_years), chunk_size):
+        year_chunk_keys = all_years[i:i + chunk_size]
+        first_year = year_chunk_keys[0]
+        last_year = year_chunk_keys[-1]
+        chunk_key = f"{first_year}-{last_year}"
+        
+        years_datasets[chunk_key]["title"] = f"Jaren {first_year} t/m {last_year}"
+        
+        for year_key in year_chunk_keys:
+            year_data = yearly_data_from_agg_year[year_key]
+            years_datasets[chunk_key]["labels"].append(str(year_key))
+            years_datasets[chunk_key]["imports"].append(round(year_data["total_import"], 3))
+            years_datasets[chunk_key]["exports"].append(round(year_data["total_export"], 3))
+            years_datasets[chunk_key]["total_import"] += year_data["total_import"]
+            years_datasets[chunk_key]["total_export"] += year_data["total_export"]
+        
+        years_datasets[chunk_key]["total_import"] = round(years_datasets[chunk_key]["total_import"], 3)
+        years_datasets[chunk_key]["total_export"] = round(years_datasets[chunk_key]["total_export"], 3)
+
+    return years_datasets
+
+
+# === BLOK 7.1: AGGREGATE_YEARS FUNCTIE ===
+def aggregate_years(records):
+    if not records:
+        return {}
+
+    daily_data = defaultdict(lambda: {"import": 0, "export": 0, "count": 0, "date": None})
+    for i in range(1, len(records)):
+        r_prev = records[i-1]
+        r_current = records[i]
+        
+        import_diff = r_current["import_kwh"] - r_prev["import_kwh"]
+        export_diff = r_current["export_kwh"] - r_prev["export_kwh"]
+        
+        if import_diff < 0 or export_diff < 0:
+            continue
+            
+        date_current = r_current["ts"].date()
+        day_key = date_current.strftime("%Y-%m-%d")
+        
+        daily_data[day_key]["import"] += import_diff
+        daily_data[day_key]["export"] += export_diff
+        daily_data[day_key]["count"] += 1
+        daily_data[day_key]["date"] = date_current
+
+    yearly_totals = defaultdict(lambda: {"import": 0, "export": 0})
+    for day_key, data in daily_data.items():
+        year = data["date"].year
+        yearly_totals[year]["import"] += data["import"]
+        yearly_totals[year]["export"] += data["export"]
+
+    all_years = sorted(yearly_totals.keys())
+    years_datasets = defaultdict(lambda: {"labels": [], "imports": [], "exports": [], "total_import": 0, "total_export": 0, "title": "", "type": "bar"})
+    
+    chunk_size = 10
+    for i in range(0, len(all_years), chunk_size):
+        year_chunk = all_years[i:i + chunk_size]
+        first_year = year_chunk[0]
+        last_year = year_chunk[-1]
+        chunk_key = f"{first_year}-{last_year}"
+        
+        years_datasets[chunk_key]["title"] = f"Jaren {first_year} t/m {last_year}"
+        
+        for year in year_chunk:
+            years_datasets[chunk_key]["labels"].append(str(year))
+            years_datasets[chunk_key]["imports"].append(round(yearly_totals[year]["import"], 3))
+            years_datasets[chunk_key]["exports"].append(round(yearly_totals[year]["export"], 3))
+            years_datasets[chunk_key]["total_import"] += yearly_totals[year]["import"]
+            years_datasets[chunk_key]["total_export"] += yearly_totals[year]["export"]
+        
+        years_datasets[chunk_key]["total_import"] = round(years_datasets[chunk_key]["total_import"], 3)
+        years_datasets[chunk_key]["total_export"] = round(years_datasets[chunk_key]["total_export"], 3)
+
+    return years_datasets
+
+
 # === BLOK 8: DATA AGGREGATIE ===
 all_periods = {
     "day": aggregate_day(records),
     "week": aggregate_week(records),
     "month": aggregate_month(records),
-    "year": aggregate_year(records)
+    "year": aggregate_year(records),
+    "years": aggregate_years(records)
 }
 
 # === BLOK 9: HTML TEMPLATE ===
@@ -467,7 +557,7 @@ body {{
     </div>
 
     <div class="period-nav">
-        <button id="btnNow" class="active" onclick="setPeriod('now')">Nu</button>
+        <button id="btnYears" onclick="setPeriod('years')">Jaren</button>
         <button id="btnDay" onclick="setPeriod('day')">Dag</button>
         <button id="btnWeek" onclick="setPeriod('week')">Week</button>
         <button id="btnMonth" onclick="setPeriod('month')">Maand</button>
@@ -543,13 +633,15 @@ function init() {{
         'day': firstDayKey,
         'week': firstWeekKey,
         'month': firstMonthKey,
-        'year': firstYearKey
+        'year': firstYearKey,
+        'years': Object.keys(allData.years).sort()[0] // First chunk of years
     }};
     state.lastKeys = {{
         'day': lastDayKey,
         'week': lastWeekKey,
         'month': lastMonthKey,
-        'year': lastYearKey
+        'year': lastYearKey,
+        'years': Object.keys(allData.years).sort().pop() // Last chunk of years
     }};
 
     const yearSelect = document.getElementById('yearSelector');
@@ -561,7 +653,7 @@ function init() {{
         yearSelect.appendChild(option);
     }});
     
-    setPeriod('now');
+    setPeriod('years');
 }}
 
 function findPeriodKey(periodType, date) {{
@@ -813,7 +905,15 @@ function setPeriod(period) {{
     document.getElementById('yearSelector').classList.remove('active');
     document.getElementById('yearSelector').value = "";
 
-    document.getElementById('btn' + period.charAt(0).toUpperCase() + period.slice(1)).classList.add('active');
+    if (period === 'years') {{
+        document.getElementById('btnYears').classList.add('active');
+    }} else {{
+        const buttonId = 'btn' + period.charAt(0).toUpperCase() + period.slice(1);
+        const periodButton = document.getElementById(buttonId);
+        if (periodButton) {{
+            periodButton.classList.add('active');
+        }}
+    }}
 
     const prevPeriod = state.period;
     const prevKey = state.currentKey;
