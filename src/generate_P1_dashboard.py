@@ -33,7 +33,7 @@ def read_logs():
                             unique_records_set.add(record_tuple)
                             records.append({
                                 "ts": ts,
-                                "active_w": data["active_power_w"] / 10.0,
+                                "active_w": data.get("active_power_w", 0) / 10.0,
                                 "import_kwh": data["total_power_import_kwh"],
                                 "export_kwh": data["total_power_export_kwh"],
                             })
