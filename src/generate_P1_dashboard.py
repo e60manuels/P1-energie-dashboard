@@ -480,6 +480,32 @@ body {{
 <script>
 const allData = {json.dumps(all_periods)};
 
+const myLabelsPlugin = {{
+    id: 'my-labels',
+    afterDraw: (chart, args, options) => {{
+        if (chart.config.type !== 'bar' || state.period === 'day') return;
+
+        const ctx = chart.ctx;
+        ctx.font = '11px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+
+        const currentClicked = clickedStates[state.currentKey] || [];
+
+        chart.data.datasets.forEach(function(dataset, i) {{
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach(function(bar, index) {{
+                if (currentClicked[index]) {{
+                    const data = dataset.data[index];
+                    ctx.fillStyle = dataset.borderColor;
+                    ctx.fillText(data.toFixed(2), bar.x, bar.y - 5);
+                }}
+            }});
+        }});
+    }}
+}};
+Chart.register(myLabelsPlugin);
+
 const ctx = document.getElementById('energyChart').getContext('2d');
 let chart = null;
 
@@ -487,6 +513,7 @@ const colorImport = '#9370DB';
 const colorExport = '#32CD32';
 const gridColor = '#3a3a3c';
 
+let clickedStates = {{}};
 let state = {{
     period: 'now',
     currentKey: null,
@@ -647,6 +674,20 @@ function updateChart() {{
     const options = {{
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (evt) => {{
+            if (state.period === 'day') return;
+            const points = chart.getElementsAtEventForMode(evt, 'index', {{ intersect: true }}, true);
+            if (points.length) {{
+                const firstPoint = points[0];
+                const index = firstPoint.index;
+                
+                if (!clickedStates[state.currentKey]) {{
+                    clickedStates[state.currentKey] = [];
+                }}
+                clickedStates[state.currentKey][index] = !clickedStates[state.currentKey][index];
+                chart.update();
+            }}
+        }},
         plugins: {{
             legend: {{ display: false }},
             tooltip: {{
@@ -765,6 +806,7 @@ function updateNavigationButtons() {{
 }}
 
 function setPeriod(period) {{
+    clickedStates = {{}}; // Reset clicked states
     document.querySelectorAll('.period-nav button').forEach(btn => {{
         btn.classList.remove('active');
     }});
@@ -840,15 +882,17 @@ function navigatie(direction) {{
 
     if (direction === 0) {{ // Current button
         state.currentKey = sortedKeys[sortedKeys.length - 1];
-        if (state.period === 'year') {{
-            document.getElementById('yearSelector').value = state.currentKey;
-        }}
     }} else {{
         const newIndex = currentIndex + direction;
         if (newIndex >= 0 && newIndex < sortedKeys.length) {{
             state.currentKey = sortedKeys[newIndex];
         }}
     }}
+
+    if (state.period === 'year') {{
+        document.getElementById('yearSelector').value = state.currentKey;
+    }}
+
     updateChart();
 }}
 
