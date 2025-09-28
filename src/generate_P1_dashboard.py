@@ -540,6 +540,8 @@ body {{
 <div class="container">
     <div class="header">
         <h1>Energie Dashboard</h1>
+        <button id="refreshBtn" onclick="refreshDashboard()" style="padding: 8px 16px; border-radius: 20px; border: none; background: var(--accent-active); color: var(--text-primary); cursor: pointer; font-size: 14px; margin-top: 10px;">Vernieuwen</button>
+        <div id="refreshStatus" class="info-text" style="margin-top: 5px;"></div>
     </div>
 
     <div class="period-title" id="periodTitle">Huidig verbruik</div>
@@ -568,6 +570,42 @@ body {{
 </div>
 
 <script>
+function refreshDashboard() {{
+    const refreshBtn = document.getElementById('refreshBtn');
+    const refreshStatus = document.getElementById('refreshStatus');
+
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Bezig...';
+    refreshStatus.textContent = '';
+
+    fetch('/refresh')
+        .then(response => {{
+            if (!response.ok) {{
+                return response.json().then(err => {{
+                    // Probeer een specifieke serverfout te krijgen, anders een algemene melding
+                    throw new Error(err.message || `Serverfout: ${{response.statusText}}`);
+                }});
+            }}
+            return response.json();
+        }})
+        .then(data => {{
+            if (data.status === 'success') {{
+                refreshStatus.textContent = 'Succes! Pagina wordt herladen...';
+                setTimeout(() => {{
+                    window.location.reload();
+                }}, 1000); // Wacht 1 seconde zodat de gebruiker de melding kan zien
+            }} else {{
+                throw new Error(data.message || 'Onbekende fout opgetreden.');
+            }}
+        }})
+        .catch(error => {{
+            console.error('Fout bij vernieuwen:', error);
+            refreshStatus.textContent = `Fout: ${{error.message}}`;
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = 'Opnieuw proberen';
+        }});
+}}
+
 const allData = {json.dumps(all_periods)};
 
 const myLabelsPlugin = {{
