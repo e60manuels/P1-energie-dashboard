@@ -5,46 +5,60 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import re
 
-log_dir = "/data/data/com.termux/files/home/p1logs/"
-if not os.path.exists(log_dir):
-    log_dir = "./sample_logs"
+# Determine project root based on this script's location
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-output_file = os.path.join(log_dir, "energie_dashboard.html")
+# Define output directory based on environment
+if os.path.isdir("/data/data/com.termux/files/home"): # Check if on Termux
+    output_dir = os.path.join(os.path.expanduser('~'), 'p1logs')
+else: # Fallback for other environments (e.g., Windows)
+    output_dir = os.path.join(project_root, 'output')
 
-# === BLOK 2: READ_LOGS FUNCTIE ===
-def read_logs():
+output_file = os.path.join(output_dir, "energie_dashboard.html")
+
+import sqlite3
+
+# === BLOK 2: READ_DATA_FROM_CHROMADB FUNCTIE ===
+def read_data_from_sqlite():
+    '''
+    Leest alle data uit de SQLite database en retourneert deze in het verwachte formaat.
+    '''
+    # Bepaal database pad dynamisch
+    if os.path.isdir("/data/data/com.termux/files/home"): # Check if on Termux
+        db_path = os.path.join(os.path.expanduser('~'), 'p1_data.db')
+    else: # Fallback for other environments (e.g., Windows)
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'p1_data.db'))
+    table_name = "metingen"
+
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"SQLite database niet gevonden op '{db_path}'.")
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row  # Toegang tot kolommen via naam
+    cursor = conn.cursor()
+
+    # Haal alle records op, gesorteerd op tijdstempel
+    cursor.execute(f"SELECT * FROM {table_name} ORDER BY timestamp ASC")
+    db_results = cursor.fetchall()
+    conn.close()
+
     records = []
-    unique_records_set = set()
-
-    for fname in sorted(os.listdir(log_dir)):
-        if fname.endswith(".jsonl"):
-            with open(os.path.join(log_dir, fname), "r") as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        ts = datetime.fromisoformat(obj["timestamp"].split(".")[0])
-                        data = obj["data"]
-                        
-                        # Maak een tuple van de unieke waarden
-                        record_tuple = (ts, data["total_power_import_kwh"], data["total_power_export_kwh"])
-                        
-                        # Voeg alleen unieke records toe aan de lijst
-                        if record_tuple not in unique_records_set:
-                            unique_records_set.add(record_tuple)
-                            records.append({
-                                "ts": ts,
-                                "active_w": data.get("active_power_w", 0) / 10.0,
-                                "import_kwh": data["total_power_import_kwh"],
-                                "export_kwh": data["total_power_export_kwh"],
-                            })
-                    except Exception as e:
-                        print(f"Fout bij het parsen van een regel: {e}")
-                        pass
-                        
-    return sorted(records, key=lambda x: x["ts"])
+    for row in db_results:
+        try:
+            records.append({
+                "ts": datetime.fromtimestamp(row["timestamp"]),
+                "active_w": row["active_power_w"] / 10.0,
+                "import_kwh": row["total_power_import_kwh"],
+                "export_kwh": row["total_power_export_kwh"],
+            })
+        except Exception as e:
+            print(f"Fout bij het verwerken van een record uit SQLite: {e}")
+            pass
+    
+    return records
 
 # === BLOK 3: HOOFDLOGICA - DATA VERWERKEN ===
-records = read_logs()
+records = read_data_from_sqlite()
 if not records:
     raise SystemExit("Geen data gevonden.")
 
@@ -1043,5 +1057,6 @@ document.addEventListener('DOMContentLoaded', function() {{
 """
 
 # === BLOK 10: BESTANDSOPERATIE ===
+os.makedirs(os.path.dirname(output_file), exist_ok=True)
 with open(output_file, "w", encoding="utf-8") as f:
     f.write(html_content)

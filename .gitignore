@@ -208,6 +208,17 @@ __marimo__/
 
 # Energie-dashboard specifieke regels
 
+# IDE settings
+.idea/
+
+# Databases
+*.db
+*.db-journal
+
+# Logs
+logcat.txt
+TermuxLog.txt
+
 # Output (gegenereerde HTML-bestanden)
 output/
 
